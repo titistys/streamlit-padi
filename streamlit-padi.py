@@ -1,27 +1,64 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-def format_id(angka):
-    return f"{angka:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
-# ==================================================
-# PAGE CONFIG
-# ==================================================
 st.set_page_config(
     page_title="Prediksi Produksi Padi",
     page_icon="🌾",
     layout="wide"
 )
 
-# ==================================================
-# LOAD DATA
-# ==================================================
+st.markdown("""
+<style>
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #0f172a;
+}
+.sidebar-btn {
+    display: block;
+    padding: 14px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: #1e293b;
+    color: white;
+    text-align: left;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    width: 100%;
+}
+.sidebar-btn:hover {
+    background: #2563eb;
+}
+.active {
+    background: #2563eb !important;
+}
+
+/* Card */
+.card {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0px 4px 14px rgba(0,0,0,0.08);
+}
+
+/* Metric */
+.metric-box {
+    background: #f8fafc;
+    padding: 20px;
+    border-radius: 14px;
+    text-align: center;
+}
+.metric-box h2 {
+    margin: 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
 @st.cache_data
 def load_data():
     return pd.read_csv("produksi_padi_final.csv")
@@ -37,153 +74,122 @@ y = df['produksi']
 model = LinearRegression()
 model.fit(X, y)
 
-# ==================================================
-# SIDEBAR NAVIGATION
-# ==================================================
-menu = st.sidebar.radio(
-    "📌 MENU",
-    ["🏠 Beranda", "📊 EDA", "🔮 Prediksi"]
-)
+def format_id(x):
+    return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+if "menu" not in st.session_state:
+    st.session_state.menu = "Beranda"
+
+with st.sidebar:
+    if st.button("🏠 Beranda", key="beranda"):
+        st.session_state.menu = "Beranda"
+    if st.button("📊 EDA", key="eda"):
+        st.session_state.menu = "EDA"
+    if st.button("🔮 Prediksi", key="prediksi"):
+        st.session_state.menu = "Prediksi"
+
+menu = st.session_state.menu
 
 # ==================================================
 # BERANDA
 # ==================================================
-if menu == "🏠 Beranda":
+if menu == "Beranda":
     st.title("🌾 Prediksi Produksi Padi")
+
     st.markdown("""
-    Aplikasi ini menggunakan **Regresi Linier Berganda** untuk memprediksi  
-    **Produksi Padi Kabupaten Purwakarta** berdasarkan variabel:
-
-    - **Luas Panen**
-    - **Produktivitas**
-    - **Tadah Hujan**
-    - **Irigasi**
-
-    ### Fitur Aplikasi:
-    ✅ Exploratory Data Analysis (EDA) Interaktif  
-    ✅ Visualisasi Tren Produksi  
-    ✅ Prediksi Produksi Padi  
-    ✅ Model Regresi Linier Berganda  
-
-    > Dataset telah melalui tahap preprocessing dan siap digunakan.
+    Aplikasi ini menggunakan **Regresi Linier Berganda**  
+    untuk memprediksi **Produksi Padi Kabupaten Purwakarta**
+    berdasarkan:
+    - Luas Panen  
+    - Produktivitas  
+    - Tadah Hujan  
+    - Irigasi  
     """)
+
+    st.divider()
+
+    # === EVALUASI MODEL ===
+    y_pred = model.predict(X)
+    mae = mean_absolute_error(y, y_pred)
+    rmse = np.sqrt(mean_squared_error(y, y_pred))
+    r2 = r2_score(y, y_pred)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"<div class='metric-box'><h4>MAE</h4><h2>{format_id(mae)}</h2></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='metric-box'><h4>RMSE</h4><h2>{format_id(rmse)}</h2></div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"<div class='metric-box'><h4>R² Score</h4><h2>{r2:.4f}</h2></div>", unsafe_allow_html=True)
+
+    st.divider()
+
+    st.markdown("### 📘 Dataset Produksi Padi di Kabupaten Purwakarta 2021-2022")
+    st.dataframe(df, use_container_width=True)
 
 # ==================================================
 # EDA
 # ==================================================
-elif menu == "📊 EDA":
-    st.title("📊 Exploratory Data Analysis (EDA)")
+elif menu == "EDA":
+    st.title("📊 Exploratory Data Analysis")
 
     eda_type = st.selectbox(
-        "Pilih Jenis Visualisasi",
-        [
-            "Line Plot (vs Tahun)",
-            "Scatter Plot",
-            "Box Plot",
-            "Correlation Matrix"
-        ]
+        "Pilih Visualisasi",
+        ["Line Plot vs Tahun", "Scatter Plot", "Box Plot", "Correlation Matrix"]
     )
 
-    # ---------------- LINE PLOT ----------------
-    if eda_type == "Line Plot (vs Tahun)":
-        st.subheader("📈 Tren Variabel terhadap Tahun")
-
-        fitur_line = st.selectbox(
+    # LINE PLOT
+    if eda_type == "Line Plot vs Tahun":
+        fitur = st.selectbox(
             "Pilih Variabel",
             ['luas_panen', 'produktivitas', 'tadah_hujan', 'irigasi', 'produksi']
         )
 
-        data_trend = df.groupby('tahun')[fitur_line].mean().reset_index()
+        trend = df.groupby("tahun")[fitur].mean().reset_index()
 
         fig, ax = plt.subplots(figsize=(8,5))
-        sns.lineplot(
-            data=data_trend,
-            x='tahun',
-            y=fitur_line,
-            marker='o',
-            ax=ax
-        )
-        ax.set_title(f"Tren {fitur_line} terhadap Tahun")
-        ax.set_xlabel("Tahun")
-        ax.set_ylabel(fitur_line)
+        sns.lineplot(data=trend, x="tahun", y=fitur, marker="o", ax=ax)
+        ax.set_title(f"{fitur} terhadap Tahun")
         st.pyplot(fig)
 
-    # ---------------- SCATTER ----------------
+    # SCATTER
     elif eda_type == "Scatter Plot":
-        st.subheader("🔍 Scatter Plot terhadap Produksi")
-
-        x_var = st.selectbox(
-            "Pilih Variabel X",
-            ['luas_panen', 'produktivitas', 'tadah_hujan', 'irigasi']
-        )
-
+        x_var = st.selectbox("Pilih X", X.columns)
         fig, ax = plt.subplots(figsize=(8,5))
-        sns.scatterplot(
-            data=df,
-            x=x_var,
-            y='produksi',
-            ax=ax
-        )
-        ax.set_title(f"{x_var} vs Produksi")
+        sns.scatterplot(data=df, x=x_var, y="produksi", ax=ax)
         st.pyplot(fig)
 
-    # ---------------- BOX PLOT ----------------
+    # BOX
     elif eda_type == "Box Plot":
-        st.subheader("📦 Distribusi Data")
-
-        box_var = st.selectbox(
-            "Pilih Variabel",
-            ['luas_panen', 'produktivitas', 'tadah_hujan', 'irigasi', 'produksi']
-        )
-
+        box_var = st.selectbox("Pilih Variabel", X.columns.tolist() + ["produksi"])
         fig, ax = plt.subplots(figsize=(6,5))
         sns.boxplot(y=df[box_var], ax=ax)
-        ax.set_title(f"Distribusi {box_var}")
         st.pyplot(fig)
 
-    # ---------------- CORRELATION ----------------
+    # CORRELATION
     elif eda_type == "Correlation Matrix":
-        st.subheader("🧮 Korelasi Antar Variabel")
-
-        numeric_df = df[['luas_panen','produktivitas','tadah_hujan','irigasi','produksi']]
-
         fig, ax = plt.subplots(figsize=(7,6))
-        sns.heatmap(
-            numeric_df.corr(),
-            annot=True,
-            cmap="viridis",
-            fmt=".2f",
-            ax=ax
-        )
+        sns.heatmap(df[X.columns.tolist() + ["produksi"]].corr(), annot=True, cmap="viridis", fmt=".2f")
         st.pyplot(fig)
 
 # ==================================================
 # PREDIKSI
 # ==================================================
-elif menu == "🔮 Prediksi":
+elif menu == "Prediksi":
     st.title("🔮 Prediksi Produksi Padi")
-
-    # default nilai prediksi = 0
-    if "hasil_prediksi" not in st.session_state:
-        st.session_state.hasil_prediksi = 0.0
 
     col1, col2 = st.columns(2)
 
     with col1:
-        luas_panen = st.number_input("Luas Panen", min_value=0.0, value=0.0)
-        produktivitas = st.number_input("Produktivitas", min_value=0.0, value=0.0)
+        luas_panen = st.number_input("Luas Panen", value=0.0)
+        produktivitas = st.number_input("Produktivitas", value=0.0)
 
     with col2:
-        tadah_hujan = st.number_input("Tadah Hujan", min_value=0.0, value=0.0)
-        irigasi = st.number_input("Irigasi", min_value=0.0, value=0.0)
+        tadah_hujan = st.number_input("Tadah Hujan", value=0.0)
+        irigasi = st.number_input("Irigasi", value=0.0)
 
     if st.button("🔍 Prediksi Produksi"):
         input_data = np.array([[luas_panen, produktivitas, tadah_hujan, irigasi]])
-        st.session_state.hasil_prediksi = model.predict(input_data)[0]
+        hasil = model.predict(input_data)[0]
 
-    st.divider()
-
-    # TAMPILAN HASIL (SELALU ADA, AWALNYA 0)
-    st.success(
-        f"🌾 **Prediksi Produksi Padi: {format_id(st.session_state.hasil_prediksi)} Ton**"
-    )
+        st.success(f"🌾 **Prediksi Produksi Padi: {format_id(hasil)} Ton**")
